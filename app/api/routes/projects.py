@@ -1,10 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, status
 
-from app.db.database import get_db
-from app.models.project import Project
+from app.api.dependencies import get_project_service
 from app.schemas.project import ProjectCreate, ProjectResponse
+from app.services.project import ProjectService
 
 
 router = APIRouter(
@@ -18,13 +16,9 @@ router = APIRouter(
     response_model=list[ProjectResponse],
 )
 def get_projects(
-    db: Session = Depends(get_db),
+    service: ProjectService = Depends(get_project_service),
 ):
-    statement = select(Project).order_by(Project.created_at.desc())
-
-    result = db.execute(statement)
-
-    return result.scalars().all()
+    return service.get_all()
 
 
 @router.get(
@@ -33,21 +27,9 @@ def get_projects(
 )
 def get_project(
     project_id: int,
-    db: Session = Depends(get_db),
+    service: ProjectService = Depends(get_project_service),
 ):
-    statement = select(Project).where(
-        Project.id == project_id
-    )
-
-    project = db.execute(statement).scalar_one_or_none()
-
-    if project is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found",
-        )
-
-    return project
+    return service.get_by_id(project_id)
 
 
 @router.post(
@@ -57,17 +39,9 @@ def get_project(
 )
 def create_project(
     project_data: ProjectCreate,
-    db: Session = Depends(get_db),
+    service: ProjectService = Depends(get_project_service),
 ):
-    project = Project(
-        **project_data.model_dump()
-    )
-
-    db.add(project)
-    db.commit()
-    db.refresh(project)
-
-    return project
+    return service.create(project_data)
 
 
 @router.put(
@@ -77,27 +51,12 @@ def create_project(
 def update_project(
     project_id: int,
     project_data: ProjectCreate,
-    db: Session = Depends(get_db),
+    service: ProjectService = Depends(get_project_service),
 ):
-    statement = select(Project).where(
-        Project.id == project_id
+    return service.update(
+        project_id,
+        project_data,
     )
-
-    project = db.execute(statement).scalar_one_or_none()
-
-    if project is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found",
-        )
-
-    for field, value in project_data.model_dump().items():
-        setattr(project, field, value)
-
-    db.commit()
-    db.refresh(project)
-
-    return project
 
 
 @router.delete(
@@ -106,19 +65,6 @@ def update_project(
 )
 def delete_project(
     project_id: int,
-    db: Session = Depends(get_db),
+    service: ProjectService = Depends(get_project_service),
 ):
-    statement = select(Project).where(
-        Project.id == project_id
-    )
-
-    project = db.execute(statement).scalar_one_or_none()
-
-    if project is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found",
-        )
-
-    db.delete(project)
-    db.commit()
+    service.delete(project_id)

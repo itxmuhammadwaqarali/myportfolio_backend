@@ -1,10 +1,8 @@
 from fastapi import APIRouter, Depends, status
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 
-from app.db.database import get_db
-from app.models.skill import Skill
+from app.api.dependencies import get_skill_service
 from app.schemas.skill import SkillCreate, SkillResponse
+from app.services.skill import SkillService
 
 
 router = APIRouter(
@@ -18,16 +16,20 @@ router = APIRouter(
     response_model=list[SkillResponse],
 )
 def get_skills(
-    db: Session = Depends(get_db),
+    service: SkillService = Depends(get_skill_service),
 ):
-    statement = select(Skill).order_by(
-        Skill.category,
-        Skill.name,
-    )
+    return service.get_all()
 
-    result = db.execute(statement)
 
-    return result.scalars().all()
+@router.get(
+    "/{skill_id}",
+    response_model=SkillResponse,
+)
+def get_skill(
+    skill_id: int,
+    service: SkillService = Depends(get_skill_service),
+):
+    return service.get_by_id(skill_id)
 
 
 @router.post(
@@ -37,14 +39,32 @@ def get_skills(
 )
 def create_skill(
     skill_data: SkillCreate,
-    db: Session = Depends(get_db),
+    service: SkillService = Depends(get_skill_service),
 ):
-    skill = Skill(
-        **skill_data.model_dump()
+    return service.create(skill_data)
+
+
+@router.put(
+    "/{skill_id}",
+    response_model=SkillResponse,
+)
+def update_skill(
+    skill_id: int,
+    skill_data: SkillCreate,
+    service: SkillService = Depends(get_skill_service),
+):
+    return service.update(
+        skill_id,
+        skill_data,
     )
 
-    db.add(skill)
-    db.commit()
-    db.refresh(skill)
 
-    return skill
+@router.delete(
+    "/{skill_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_skill(
+    skill_id: int,
+    service: SkillService = Depends(get_skill_service),
+):
+    service.delete(skill_id)
